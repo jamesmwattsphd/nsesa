@@ -2,7 +2,10 @@ import streamlit as st
 import time
 import os
 import pandas as pd
+from pathlib import Path
 
+# Find the absolute path to the directory this app.py file is sitting in
+THIS_DIR = Path(__file__).parent
 # --- 1. SET PAGE CONFIG (Must be the very first Streamlit command) ---
 st.set_page_config(page_title="NSeSA League Manager", layout="wide", initial_sidebar_state="expanded")
 
@@ -12,13 +15,13 @@ SCHOOL_DB = {
         "name": "Beatrice High School",
         "mascot": "Orangemen",
         "color": "#FF6B00",  # Orange
-        "logo_file": "orange.png"
+        "logo_file": THIS_DIR/"orange.png"
     },
     "crete": {
         "name": "Crete High School",
         "mascot": "Cardinals",
         "color": "#DD0000",  # Red
-        "logo_file": "card.png"
+        "logo_file": THIS_DIR/"card.png"
     },
     "norris": {
         "name": "Norris High School",
@@ -37,7 +40,8 @@ if "school_id" not in st.session_state:
 # --- 4. NAVIGATION CONTROLLER ---
 # SCREEN 1: LOGIN PAGE
 if not st.session_state.logged_in:
-    st.image("title.png")
+    title_pic = THIS_DIR/"title.png"
+    st.image(title_pic)
     st.title("🎮 NSeSA League Management Portal")
     st.subheader("Welcome, Coach! Please sign in.")
 
