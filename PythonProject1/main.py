@@ -19,7 +19,7 @@ st.set_page_config(page_title="NSeSA League Manager", layout="wide", initial_sid
 SCHOOL_DB = {
     "beatrice": {
         "name": "Beatrice High School",
-        "mascot": "Orangemen",
+        "mascot": "Orange Gamers",
         "color": "#FF6B00",  # Orange
         "logo_file": THIS_DIR/"orange.png"
     },
@@ -62,8 +62,6 @@ if not st.session_state.logged_in:
                     st.session_state.logged_in = True
                     st.session_state.school_id = selected_school
                     st.success("Authentication Successful!")
-                    st.balloons()
-                    time.sleep(1.5)
                     st.rerun()
                 else:
                     st.error("Invalid PIN.")
@@ -96,7 +94,7 @@ if not st.session_state.logged_in:
 
                         # Celebrate success!
                         st.success("🎉 Application Submitted Successfully! Welcome to NSeSA.")
-                        st.snow()  # Fun alternate shortcut animation to celebrate!
+                        st.balloons()  # Fun alternate shortcut animation to celebrate!
 
                     except Exception as e:
                         st.error(f"Database Error: {e}")
@@ -147,7 +145,7 @@ else:
         # 3-COLUMN 3D ELEVATED LOOK USING STREAMLIT BORDER CONTAINERS
         col1, col2, col3 = st.columns(3)
 
-        with col1:
+        with col2:
             # Container with border simulates that floating card look
             with st.container(border=True):
                 st.markdown("### 📁 Past Matches")
@@ -156,7 +154,7 @@ else:
                 st.markdown("**Beatrice (3)** vs Crete (1)")
                 st.text("Rocket League Varsity • Tue")
 
-        with col2:
+        with col1:
             with st.container(border=True):
                 st.markdown("### ⚡ Active Matches")
                 st.markdown("*(Score Entry Enabled)*")
@@ -166,9 +164,9 @@ else:
                 st.markdown("**🚀 Rocket League Varsity**")
                 r_col1, r_col2 = st.columns(2)
                 with r_col1:
-                    st.number_input(f"{school_data['name']} Games", min_value=0, max_value=3, value=0, key="rl_home")
+                    st.number_input(f"{school_data['name']} Games", min_value=0, max_value=4, value=0, key="rl_home")
                 with r_col2:
-                    st.number_input("Opponent Games", min_value=0, max_value=3, value=0, key="rl_away")
+                    st.number_input("Opponent Games", min_value=0, max_value=4, value=0, key="rl_away")
                 st.button("Submit Rocket League Score", use_container_width=True, type="primary")
 
                 st.write("---")
@@ -186,10 +184,231 @@ else:
                 st.markdown(f"**{school_data['name']}** vs Norris")
                 st.text("Valorant Varsity • Thursday")
 
+
     elif page_selection == "Roster Management":
-        st.header("Roster Management")
-        st.write("Manage student players per game title.")
-        # Your roster code can easily go here later!
+
+        st.header("📋 State League Roster Management")
+
+        # 1. ROSTER RULES & METADATA (Your Game Datasheet Rules)
+
+        ROSTER_LIMITS = {
+
+            "Rocket League": {"min": 3, "max": 5, "desc": "3 Active, up to 2 Substitutes"},
+
+            "Super Smash Bros Crew": {"min": 4, "max": 7, "desc": "4 Active, up to 3 Substitutes"},
+
+            "Valorant": {"min": 5, "max": 8, "desc": "5 Active, up to 3 Substitutes"}
+
+        }
+
+        ROSTER_LOCK_DATE = "October 15, 2026"
+
+        # Display League Rules Alert Banner
+
+        st.info(
+            f"🔒 **Roster Lock Deadline:** {ROSTER_LOCK_DATE}. All rosters must meet minimum player limits by midnight.")
+
+        # 2. PULL FRESH ROSTER DATA FROM SUPABASE
+
+        try:
+
+            response = supabase.table("league_rosters").select("*").execute()
+
+            # Turn it into a dataframe or make a blank one if database is completely empty
+
+            if response.data:
+
+                all_rosters_df = pd.DataFrame(response.data)
+
+            else:
+
+                all_rosters_df = pd.DataFrame(columns=["id", "school_id", "game_title", "gamer_tag"])
+
+        except Exception as e:
+
+            st.error(f"Error fetching rosters: {e}")
+
+            all_rosters_df = pd.DataFrame(columns=["id", "school_id", "game_title", "gamer_tag"])
+
+        # 3. SPLIT WORKSPACE INTO TWO TABS: EDIT MY ROSTER VS SCOUT OTHERS
+
+        tab_manage, tab_scout = st.tabs(["⚙️ Manage Your Roster", "👁️ League Scouting Portal"])
+
+        # --- TAB 1: MANAGE YOUR ROSTER (EDIT MODE) ---
+
+        with tab_manage:
+
+            st.subheader(f"Edit Roster for {school_data['name']}")
+
+            st.caption("Add or modify your team's anonymous gamer tags below. Changes commit instantly to Supabase.")
+
+            # Filter master dataframe down to JUST the logged-in coach's school
+
+            my_school_df = all_rosters_df[all_rosters_df["school_id"] == school_key][["id", "game_title", "gamer_tag"]]
+
+            # STREAMLIT MAGIC: st.data_editor turns a dataframe into an editable Excel spreadsheet interface
+
+            edited_df = st.data_editor(
+
+                my_school_df,
+
+                column_config={
+
+                    "id": None,  # Hides the database internal ID column from the coach
+
+                    "game_title": st.column_config.SelectboxColumn(
+
+                        "Game Title",
+
+                        options=list(ROSTER_LIMITS.keys()),
+
+                        required=True
+
+                    ),
+
+                    "gamer_tag": st.column_config.TextColumn(
+
+                        "Student Gamer Tag",
+
+                        placeholder="Enter anonymized tag...",
+
+                        required=True
+
+                    )
+
+                },
+
+                num_rows="dynamic",  # Enables the "+ Add Row" and check-box delete controls natively!
+
+                use_container_width=True,
+
+                key="roster_editor"
+
+            )
+
+            # Save changes button to sync edits back up to Supabase
+
+            if st.button("Save Roster Changes", type="primary"):
+
+                # ⚠️ BACKEND SYNCLOGIC: Deep under the hood, it's safer to clear old rows and re-insert the clean matrix
+
+                try:
+
+                    # 1. Clear out old entries for this school
+
+                    supabase.table("league_rosters").delete().eq("school_id", school_key).execute()
+
+                    # 2. Build the payload block from the spreadsheet state
+
+                    new_rows = []
+
+                    for _, row in edited_df.iterrows():
+
+                        if pd.notna(row["game_title"]) and pd.notna(row["gamer_tag"]) and row[
+                            "gamer_tag"].strip() != "":
+                            new_rows.append({
+
+                                "school_id": school_key,
+
+                                "game_title": row["game_title"],
+
+                                "gamer_tag": row["gamer_tag"].strip()
+
+                            })
+
+                    # 3. Push new rows back to Supabase if any exist
+
+                    if new_rows:
+                        supabase.table("league_rosters").insert(new_rows).execute()
+
+                    st.success("💾 Roster synced securely with Supabase cloud server!")
+
+                    st.snow()
+
+                    time.sleep(1)
+
+                    st.rerun()
+
+                except Exception as e:
+
+                    st.error(f"Failed to update database: {e}")
+
+            # ROSTER LIMIT CHECKER: Let's read the current roster and print validation badges!
+
+            st.markdown("### 📊 Active Roster Validation")
+
+            val_cols = st.columns(3)
+
+            for idx, (game, limits) in enumerate(ROSTER_LIMITS.items()):
+
+                # Count how many players this school has registered for this specific game
+
+                current_count = len(edited_df[edited_df["game_title"] == game])
+
+                with val_cols[idx % 3]:
+
+                    with st.container(border=True):
+
+                        st.markdown(f"**{game}**")
+
+                        st.write(f"Current Count: `{current_count}` players")
+
+                        st.caption(f"Allowed: {limits['min']} to {limits['max']} ({limits['desc']})")
+
+                        if current_count < limits["min"]:
+
+                            st.error(f"⚠️ Action Required: Needs {limits['min'] - current_count} more!")
+
+                        elif current_count > limits["max"]:
+
+                            st.danger(f"🚨 Illegal Roster: Remove {current_count - limits['max']} players!")
+
+                        else:
+
+                            st.success("✅ Roster Legal")
+
+        # --- TAB 2: SCOUTING PORTAL (VIEW-ONLY MODE) ---
+
+        with tab_scout:
+
+            st.subheader("State-Wide Scouting Database")
+
+            st.write("Review student rosters across all verified districts to prepare pick/ban strategies.")
+
+            # Dropdown filter to select WHICH school you want to scout
+
+            scout_school_options = {k: v for k, v in SCHOOL_DB.items() if k != school_key}
+
+            selected_scout_key = st.selectbox(
+
+                "Select Opponent School to View",
+
+                options=list(scout_school_options.keys()),
+
+                format_func=lambda x: SCHOOL_DB[x]['name']
+
+            )
+
+            # Filter master list to target school data only
+
+            scout_df = all_rosters_df[all_rosters_df["school_id"] == selected_scout_key]
+
+            if not scout_df.empty:
+
+                # Group data cleanly by game using Pandas groupings
+
+                for game_title, group in scout_df.groupby("game_title"):
+
+                    with st.expander(f"🎮 {game_title} Roster ({len(group)} Rostered)", expanded=True):
+
+                        # Display a clean, non-editable text list of enemy tags
+
+                        for tag in group["gamer_tag"]:
+                            st.markdown(f"• `{tag}`")
+
+            else:
+
+                st.info("This school hasn't registered any player data yet.")
 
     elif page_selection == "Standings":
         st.header("League Standings")
