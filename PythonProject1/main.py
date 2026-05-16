@@ -14,24 +14,7 @@ supabase: Client = create_client(url, key)
 THIS_DIR = Path(__file__).parent
 # --- 1. SET PAGE CONFIG (Must be the very first Streamlit command) ---
 st.set_page_config(page_title="NSeSA League Manager", layout="wide", initial_sidebar_state="expanded")
-def login_with_discord():
-    # This generates the Discord login URL and redirects the user
-    res = supabase.auth.sign_in_with_oauth({
-        "provider": "discord",
-        "options": {
-            "redirect_to": "https://nebraskaesports.streamlit.app/" # Your app's URL
-        }
-    })
-    # Streamlit doesn't natively redirect via Python; use a link or components
-    st.link_button("Login with Discord", res.url)
 
-# Display login button
-login_with_discord()
-
-# Check for session (you may need a custom component or URL parsing for this)
-user = supabase.auth.get_user()
-if user:
-    st.write(f"Welcome, {user.user.email}!")
 # --- 2. MOCK DATABASE (Your Pandas/Dictionary comfort zone!) ---
 SCHOOL_DB = {
     "beatrice": {
