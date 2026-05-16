@@ -19,7 +19,7 @@ def login_with_discord():
     res = supabase.auth.sign_in_with_oauth({
         "provider": "discord",
         "options": {
-            "redirect_to": "https://vqihaxgdinhbbetipapr.supabase.co/auth/v1/callback" # Your app's URL
+            "redirect_to": "https://nebraskaesports.streamlit.app/" # Your app's URL
         }
     })
     # Streamlit doesn't natively redirect via Python; use a link or components
