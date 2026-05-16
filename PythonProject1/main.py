@@ -270,7 +270,7 @@ else:
 
                         "Student Gamer Tag",
 
-                        placeholder="Enter anonymized tag...",
+                        default="Enter anonymized tag...",
 
                         required=True
 
