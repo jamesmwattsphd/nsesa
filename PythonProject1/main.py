@@ -3,7 +3,13 @@ import time
 import os
 import pandas as pd
 from pathlib import Path
+from supabase import Client, create_client
+# Accessing the secrets
+url = st.secrets["SUPABASE_URL"]
+key = st.secrets["SUPABASE_KEY"]
 
+# Initialize the Supabase client
+supabase: Client = create_client(url, key)
 # Find the absolute path to the directory this app.py file is sitting in
 THIS_DIR = Path(__file__).parent
 # --- 1. SET PAGE CONFIG (Must be the very first Streamlit command) ---
@@ -42,28 +48,60 @@ if "school_id" not in st.session_state:
 if not st.session_state.logged_in:
     title_pic = THIS_DIR/"title.png"
     st.image(title_pic)
-    st.title("🎮 NSeSA League Management Portal")
-    st.subheader("Welcome, Coach! Please sign in.")
+    st.title("NSeSA League Management Portal", text_alignment="center")
+    tab_login, tab_interest = st.tabs(["🔑 Coach Login", "📝 School Interest Form"])
+    with tab_login:
+        st.subheader("Welcome, Coach! Please sign in.")
+        with st.container(border=True):
+            selected_school = st.selectbox("Select Your School", options=list(SCHOOL_DB.keys()),
+                                           format_func=lambda x: SCHOOL_DB[x]['name'])
+            password = st.text_input("Enter Coach PIN", type="password", key="login_pin")
 
-    # Simple form container that mimics a floating card
-    with st.container(border=True):
-        selected_school = st.selectbox("Select Your School", options=list(SCHOOL_DB.keys()),
-                                       format_func=lambda x: SCHOOL_DB[x]['name'])
-        password = st.text_input("Enter Coach PIN", type="password", help="Demo PIN is 1234")
+            if st.button("Log In", use_container_width=True, type="primary"):
+                if password == "1234":
+                    st.session_state.logged_in = True
+                    st.session_state.school_id = selected_school
+                    st.success("Authentication Successful!")
+                    st.balloons()
+                    time.sleep(1.5)
+                    st.rerun()
+                else:
+                    st.error("Invalid PIN.")
 
-        login_button = st.button("Log In", use_container_width=True, type="primary")
+    with tab_interest:
+        st.subheader("Bring Esports to Your School")
+        st.caption("Fill out this form to submit your interest directly to the NSeSA database.")
 
-        if login_button:
-            if password == "1234":
-                st.session_state.logged_in = True
-                st.session_state.school_id = selected_school
-                st.success("Authentication Successful!")
-                st.balloons()  # <--- The shortcut animation you wanted!
-                time.sleep(1.5)  # Let them enjoy the balloons before rerunning
-                st.rerun()
-            else:
-                st.error("Invalid PIN. Please try again.")
+        # 2. CREATE THE NATIVE STREAMLIT FORM
+        with st.form(key="new_interest_form", clear_on_submit=True):
+            # Form Input Fields
+            applicant_name = st.text_input("Your Name")
+            applicant_email = st.text_input("Contact Email Address")
+            school_name = st.text_input("School / District Name")
+            submit_button = st.form_submit_button(label="Submit Application", type="primary", use_container_width=True)
+            if submit_button:
+                # Quick check to make sure they didn't submit empty fields
+                if applicant_name and applicant_email and school_name:
 
+                    # Bundle the data into a clean dictionary matching your SQL columns
+                    form_data = {
+                        "name": applicant_name,
+                        "email": applicant_email,
+                        "school_name": school_name,
+                    }
+
+                    try:
+                        # Inject data straight into your Supabase table!
+                        response = supabase.table("league_interest").insert(form_data).execute()
+
+                        # Celebrate success!
+                        st.success("🎉 Application Submitted Successfully! Welcome to NSeSA.")
+                        st.snow()  # Fun alternate shortcut animation to celebrate!
+
+                    except Exception as e:
+                        st.error(f"Database Error: {e}")
+                else:
+                    st.warning("Please fill out all required fields before submitting.")
 # SCREEN 2: AUTHENTICATED DASHBOARD
 else:
     # Fetch logged in school details
