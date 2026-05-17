@@ -42,9 +42,10 @@ if not st.session_state.logged_in:
     with tab_login:
         st.subheader("Welcome, Coach! Please sign in.")
         with st.container(border=True):
-            password = st.text_input("Enter Coach PIN", type="password", key="login_pin")
-
-            if st.button("Log In", use_container_width=True, type="primary"):
+            with st.form(key="coach_login_form"):
+                password = st.text_input("Enter Coach PIN", type="password", key="login_pin")
+                login_button = st.form_submit_button("Log In", use_container_width=True, type="primary")
+            if login_button:
                 if not schools_df.empty:
                     matched_row = schools_df[schools_df["login"] == password]
                     if not matched_row.empty:
@@ -55,6 +56,8 @@ if not st.session_state.logged_in:
                         st.rerun()
                 else:
                     st.error("Invalid PIN.")
+            else:
+                st.error("Database table empty or offline.")
 
     with tab_interest:
         st.subheader("Bring Esports to Your School")
