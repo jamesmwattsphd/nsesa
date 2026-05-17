@@ -240,7 +240,7 @@ else:
 
             # Filter master dataframe down to JUST the logged-in coach's school
 
-            my_school_df = all_rosters_df[all_rosters_df["school_id"] == school_key][["id", "game_title", "gamer_tag"]]
+            my_school_df = all_rosters_df[all_rosters_df["school_id"] == school_name][["id", "game_title", "gamer_tag"]]
 
             # STREAMLIT MAGIC: st.data_editor turns a dataframe into an editable Excel spreadsheet interface
 
@@ -292,7 +292,7 @@ else:
 
                     # 1. Clear out old entries for this school
 
-                    supabase.table("league_rosters").delete().eq("school_id", school_key).execute()
+                    supabase.table("league_rosters").delete().eq("school_id", school_name).execute()
 
                     # 2. Build the payload block from the spreadsheet state
 
@@ -304,7 +304,7 @@ else:
                             "gamer_tag"].strip() != "":
                             new_rows.append({
 
-                                "school_id": school_key,
+                                "school_id": school_name,
 
                                 "game_title": row["game_title"],
 
@@ -373,17 +373,6 @@ else:
 
             # Dropdown filter to select WHICH school you want to scout
 
-            scout_school_options = {k: v for k, v in SCHOOL_DB.items() if k != school_key}
-
-            selected_scout_key = st.selectbox(
-
-                "Select Opponent School to View",
-
-                options=list(scout_school_options.keys()),
-
-                format_func=lambda x: SCHOOL_DB[x]['name']
-
-            )
 
             # Filter master list to target school data only
 
