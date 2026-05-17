@@ -26,6 +26,7 @@ def load_schools_directory():
 # --- 2. Load DB!
 schools_df = load_schools_directory()
 
+
 # --- 3. INITIALIZE MEMORY (Session State) ---
 if "logged_in" not in st.session_state:
     st.session_state.logged_in = False
@@ -43,22 +44,21 @@ if not st.session_state.logged_in:
         st.subheader("Welcome, Coach! Please sign in.")
         with st.container(border=True):
             with st.form(key="coach_login_form"):
-                password = st.text_input("Enter Coach PIN", type="password", key="login_pin")
+                pin = st.text_input("Enter Coach PIN", type="password", key="login_pin")
                 login_button = st.form_submit_button("Log In", use_container_width=True, type="primary")
             if login_button:
                 if not schools_df.empty:
-                    matched_row = schools_df[schools_df["login"] == password]
+                    matched_row = schools_df[schools_df["login"] == int(pin)]
                     if not matched_row.empty:
                         school_dict = matched_row.iloc[0].to_dict()
                         st.session_state.logged_in = True
                         st.session_state.school_profile = school_dict
                         st.success(f"Welcome back, coach from {school_dict['school']}!")
                         st.rerun()
+                    else:
+                        st.error("Invalid PIN.")
                 else:
-                    st.error("Invalid PIN.")
-            else:
-                st.error("Database table empty or offline.")
-
+                    st.error("Database Offline")
     with tab_interest:
         st.subheader("Bring Esports to Your School")
         st.caption("Fill out this form to submit your interest directly to the NSeSA database.")
@@ -108,7 +108,7 @@ else:
             st.image(str(THIS_DIR / school_pic), width = 120)
         else:
             st.title("🎮")
-        st.markdown(f" ##{school_name}")
+        st.markdown(f"**{school_name}**")
         st.markdown(f"**Mascot:** {school_mascot}")
         st.write("---")
 
@@ -160,7 +160,7 @@ else:
                 st.markdown("**🚀 Rocket League Varsity**")
                 r_col1, r_col2 = st.columns(2)
                 with r_col1:
-                    st.number_input(f"{school_data['name']} Games", min_value=0, max_value=4, value=0, key="rl_home")
+                    st.number_input(f"{school_name} Games", min_value=0, max_value=4, value=0, key="rl_home")
                 with r_col2:
                     st.number_input("Opponent Games", min_value=0, max_value=4, value=0, key="rl_away")
                 st.button("Submit Rocket League Score", use_container_width=True, type="primary")
@@ -169,7 +169,7 @@ else:
 
                 # Custom Game Input Rule 2: Smash Crew Battle Stocks
                 st.markdown("**💥 Super Smash Bros Crew**")
-                smash_winner = st.selectbox("Select Winner", ["Select...", school_data['name'], "Opponent School"])
+                smash_winner = st.selectbox("Select Winner", ["Select...", school_name, "Opponent School"])
                 st.number_input("Remaining Stocks (Tie-Breaker)", min_value=0, max_value=12, value=0)
                 st.button("Submit Smash Score", use_container_width=True)
 
@@ -177,7 +177,7 @@ else:
             with st.container(border=True):
                 st.markdown("### 📅 Upcoming Schedule")
                 st.write("---")
-                st.markdown(f"**{school_data['name']}** vs Norris")
+                st.markdown(f"**{school_name}** vs Norris")
                 st.text("Valorant Varsity • Thursday")
 
 
@@ -234,7 +234,7 @@ else:
 
         with tab_manage:
 
-            st.subheader(f"Edit Roster for {school_data['name']}")
+            st.subheader(f"Edit Roster for {school_name}")
 
             st.caption("Add or modify your team's anonymous gamer tags below. Changes commit instantly to Supabase.")
 
