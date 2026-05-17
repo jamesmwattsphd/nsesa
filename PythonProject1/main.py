@@ -3,6 +3,8 @@ import time
 import os
 import pandas as pd
 from pathlib import Path
+
+from pygments.lexer import default
 from supabase import Client, create_client
 # Accessing the secrets
 url = st.secrets["SUPABASE_URL"]
@@ -23,9 +25,25 @@ def load_schools_directory():
     except Exception as e:
         st.error(f"Error loading school profiles: {e}")
     return pd.DataFrame()
+def load_games_directory():
+    try:
+        response = supabase.table("games").select("""
+    match_id,
+    game,
+    week,
+    home ( school, logo_file),
+    away ( school, logo_file),
+    home_score,
+    away_score
+""").execute()
+        if response.data:
+            return pd.DataFrame(response.data)
+    except Exception as e:
+        st.error(f"Error loading school profiles: {e}")
+    return pd.DataFrame()
 # --- 2. Load DB!
 schools_df = load_schools_directory()
-
+games_df = load_games_directory()
 
 # --- 3. INITIALIZE MEMORY (Session State) ---
 if "logged_in" not in st.session_state:
@@ -45,7 +63,7 @@ if not st.session_state.logged_in:
         with st.container(border=True):
             with st.form(key="coach_login_form"):
                 pin = st.text_input("Enter Coach PIN", type="password", key="login_pin")
-                login_button = st.form_submit_button("Log In", use_container_width=True, type="primary")
+                login_button = st.form_submit_button("Log In", width='content', type="primary")
             if login_button:
                 if not schools_df.empty:
                     matched_row = schools_df[schools_df["login"] == int(pin)]
@@ -69,7 +87,7 @@ if not st.session_state.logged_in:
             applicant_name = st.text_input("Your Name")
             applicant_email = st.text_input("Contact Email Address")
             school_name = st.text_input("School / District Name")
-            submit_button = st.form_submit_button(label="Submit Application", type="primary", use_container_width=True)
+            submit_button = st.form_submit_button(label="Submit Application", type="primary", width='content')
             if submit_button:
                 # Quick check to make sure they didn't submit empty fields
                 if applicant_name and applicant_email and school_name:
@@ -101,6 +119,35 @@ else:
     school_color = school_data['color']
     school_mascot = school_data['mascot']
     school_pic = school_data["logo_file"]
+    def match_card_creator(match_info_row, entry=False):
+        #read match info_row
+        title = match_info_row["game"]
+        week = match_info_row["week"]
+        hdata = match_info_row["home"]
+        adata = match_info_row["away"]
+        hname = hdata["school"]
+        aname = adata["school"]
+        hlogo = hdata["logo_file"]
+        alogo = adata["logo_file"]
+        hscore = match_info_row["home_score"]
+        ascore = match_info_row["away_score"]
+        # top of card
+        with st.container(border=True):
+            st.header(title, text_alignment='center')
+            st.caption(f"Week: {week}", text_alignment='center')
+            home,away = st.columns(2)
+            with home:
+                st.write("Home")
+                st.write(hname)
+
+                st.header(hscore, text_alignment="center")
+                st.image(str(THIS_DIR / hlogo), width=100)
+            with away:
+                st.write("Away")
+                st.write (aname)
+
+                st.header(ascore, text_alignment="center")
+                st.image(str(THIS_DIR / alogo), width=100)
 
     # --- SIDEBAR NAVIGATION ---
     with st.sidebar:
@@ -113,7 +160,7 @@ else:
         st.write("---")
 
         # Simple navigation radio buttons
-        page_selection = st.radio("Navigate", ["Match Dashboard", "Roster Management", "Standings"])
+        page_selection = st.radio("Navigate", ["Dashboard", "Score Entry", "Roster Management", "Standings"])
 
         st.write("---")
         if st.button("Log Out", type="secondary"):
@@ -134,9 +181,29 @@ else:
     )
 
     # --- ROUTING THE PAGES ---
-    if page_selection == "Match Dashboard":
-        st.header("Match Dashboard")
-        st.caption("Manage and input current league scores.")
+    if page_selection == "Score Entry":
+        st.header("⚡ Active Matches")
+        st.caption("*Score Entry Enabled*")
+        #3-Columns, 1 for each game that is available.
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            match_row = games_df[games_df["match_id"]=="d1rl1"]
+            game_dict = match_row.iloc[0].to_dict()
+            match_card_creator(game_dict)
+            with st.form(key="RL1"):
+                homec, awayc = st.columns(2)
+                with homec:
+                    hr1 = st.number_input("Game 1 Score")
+                    hr2 = st.number_input("Game 2 Score")
+                    hr3 = st.number_input("Game 3 Score")
+                with awayc:
+                    ar1 = st.number_input("")
+                    ar2 = st.number_input(" ")
+                    ar3 = st.number_input("  ")
+                submit_button = st.form_submit_button(label="Submit Scores", type="primary", width='stretch')
+    if page_selection == "Dashboard":
+        st.header("Dashboard", text_alignment="center")
+
 
         # 3-COLUMN 3D ELEVATED LOOK USING STREAMLIT BORDER CONTAINERS
         col1, col2, col3 = st.columns(3)
@@ -149,29 +216,6 @@ else:
                 st.write("---")
                 st.markdown("**Beatrice (3)** vs Crete (1)")
                 st.text("Rocket League Varsity • Tue")
-
-        with col1:
-            with st.container(border=True):
-                st.markdown("### ⚡ Active Matches")
-                st.markdown("*(Score Entry Enabled)*")
-                st.write("---")
-
-                # Custom Game Input Rule 1: Rocket League Best of 5
-                st.markdown("**🚀 Rocket League Varsity**")
-                r_col1, r_col2 = st.columns(2)
-                with r_col1:
-                    st.number_input(f"{school_name} Games", min_value=0, max_value=4, value=0, key="rl_home")
-                with r_col2:
-                    st.number_input("Opponent Games", min_value=0, max_value=4, value=0, key="rl_away")
-                st.button("Submit Rocket League Score", use_container_width=True, type="primary")
-
-                st.write("---")
-
-                # Custom Game Input Rule 2: Smash Crew Battle Stocks
-                st.markdown("**💥 Super Smash Bros Crew**")
-                smash_winner = st.selectbox("Select Winner", ["Select...", school_name, "Opponent School"])
-                st.number_input("Remaining Stocks (Tie-Breaker)", min_value=0, max_value=12, value=0)
-                st.button("Submit Smash Score", use_container_width=True)
 
         with col3:
             with st.container(border=True):
@@ -276,7 +320,7 @@ else:
 
                 num_rows="dynamic",  # Enables the "+ Add Row" and check-box delete controls natively!
 
-                use_container_width=True,
+                width='content',
 
                 key="roster_editor"
 
