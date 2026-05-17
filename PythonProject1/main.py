@@ -373,28 +373,6 @@ else:
 
             # Dropdown filter to select WHICH school you want to scout
 
-
-            # Filter master list to target school data only
-
-            scout_df = all_rosters_df[all_rosters_df["school_id"] == selected_scout_key]
-
-            if not scout_df.empty:
-
-                # Group data cleanly by game using Pandas groupings
-
-                for game_title, group in scout_df.groupby("game_title"):
-
-                    with st.expander(f"🎮 {game_title} Roster ({len(group)} Rostered)", expanded=True):
-
-                        # Display a clean, non-editable text list of enemy tags
-
-                        for tag in group["gamer_tag"]:
-                            st.markdown(f"• `{tag}`")
-
-            else:
-
-                st.info("This school hasn't registered any player data yet.")
-
     elif page_selection == "Standings":
         st.header("League Standings")
         st.write("Regional Standings with Strength of Schedule modifiers.")
