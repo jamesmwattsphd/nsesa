@@ -191,15 +191,12 @@ else:
             game_dict = match_row.iloc[0].to_dict()
             match_card_creator(game_dict)
             with st.form(key="RL1"):
-                homec, awayc = st.columns(2)
-                with homec:
-                    hr1 = st.number_input("Game 1 Score")
-                    hr2 = st.number_input("Game 2 Score")
-                    hr3 = st.number_input("Game 3 Score")
-                with awayc:
-                    ar1 = st.number_input("")
-                    ar2 = st.number_input(" ")
-                    ar3 = st.number_input("  ")
+                hr1 = st.number_input("Game 1 Score")
+                hr2 = st.number_input("Game 2 Score")
+                hr3 = st.number_input("Game 3 Score")
+                ar1 = st.number_input("")
+                ar2 = st.number_input(" ")
+                ar3 = st.number_input("  ")
                 submit_button = st.form_submit_button(label="Submit Scores", type="primary", width='stretch')
     if page_selection == "Dashboard":
         st.header("Dashboard", text_alignment="center")
