@@ -14,34 +14,23 @@ supabase: Client = create_client(url, key)
 THIS_DIR = Path(__file__).parent
 # --- 1. SET PAGE CONFIG (Must be the very first Streamlit command) ---
 st.set_page_config(page_title="NSeSA League Manager", layout="wide", initial_sidebar_state="expanded")
-
-# --- 2. MOCK DATABASE (Your Pandas/Dictionary comfort zone!) ---
-SCHOOL_DB = {
-    "beatrice": {
-        "name": "Beatrice High School",
-        "mascot": "Orange Gamers",
-        "color": "#FF6B00",  # Orange
-        "logo_file": THIS_DIR/"orange.png"
-    },
-    "crete": {
-        "name": "Crete High School",
-        "mascot": "Cardinals",
-        "color": "#DD0000",  # Red
-        "logo_file": THIS_DIR/"card.png"
-    },
-    "norris": {
-        "name": "Norris High School",
-        "mascot": "Titans",
-        "color": "#004488",  # Blue
-        "logo": "⚔️"
-    }
-}
+@st.cache_data(ttl=600)
+def load_schools_directory():
+    try:
+        response = supabase.table("teams").select("*").execute()
+        if response.data:
+            return pd.DataFrame(response.data)
+    except Exception as e:
+        st.error(f"Error loading school profiles: {e}")
+    return pd.DataFrame()
+# --- 2. Load DB!
+schools_df = load_schools_directory()
 
 # --- 3. INITIALIZE MEMORY (Session State) ---
 if "logged_in" not in st.session_state:
     st.session_state.logged_in = False
-if "school_id" not in st.session_state:
-    st.session_state.school_id = None
+if "school_profile" not in st.session_state:
+    st.session_state.school_profile = {}
 
 # --- 4. NAVIGATION CONTROLLER ---
 # SCREEN 1: LOGIN PAGE
@@ -53,16 +42,17 @@ if not st.session_state.logged_in:
     with tab_login:
         st.subheader("Welcome, Coach! Please sign in.")
         with st.container(border=True):
-            selected_school = st.selectbox("Select Your School", options=list(SCHOOL_DB.keys()),
-                                           format_func=lambda x: SCHOOL_DB[x]['name'])
             password = st.text_input("Enter Coach PIN", type="password", key="login_pin")
 
             if st.button("Log In", use_container_width=True, type="primary"):
-                if password == "1234":
-                    st.session_state.logged_in = True
-                    st.session_state.school_id = selected_school
-                    st.success("Authentication Successful!")
-                    st.rerun()
+                if not schools_df.empty:
+                    matched_row = schools_df[schools_df["login"] == password]
+                    if not matched_row.empty:
+                        school_dict = matched_row.iloc[0].to_dict()
+                        st.session_state.logged_in = True
+                        st.session_state.school_profile = school_dict
+                        st.success(f"Welcome back, coach from {school_dict['school']}!")
+                        st.rerun()
                 else:
                     st.error("Invalid PIN.")
 
@@ -103,17 +93,20 @@ if not st.session_state.logged_in:
 # SCREEN 2: AUTHENTICATED DASHBOARD
 else:
     # Fetch logged in school details
-    school_key = st.session_state.school_id
-    school_data = SCHOOL_DB[school_key]
+    school_data = st.session_state.school_profile
+    school_name = school_data['school']
+    school_color = school_data['color']
+    school_mascot = school_data['mascot']
+    school_pic = school_data["logo_file"]
 
     # --- SIDEBAR NAVIGATION ---
     with st.sidebar:
-        if os.path.exists(school_data['logo_file']):
-            st.image(school_data['logo_file'], width=120)
+        if (THIS_DIR / school_pic).exists():
+            st.image(str(THIS_DIR / school_pic), width = 120)
         else:
             st.title("🎮")
-        st.markdown(f" {school_data['name']}")
-        st.markdown(f"**Role:** Verified Coach")
+        st.markdown(f" ##{school_name}")
+        st.markdown(f"**Mascot:** {school_mascot}")
         st.write("---")
 
         # Simple navigation radio buttons
@@ -122,16 +115,16 @@ else:
         st.write("---")
         if st.button("Log Out", type="secondary"):
             st.session_state.logged_in = False
-            st.session_state.school_id = None
+            st.session_state.school_profile = {}
             st.rerun()
 
     # --- DYNAMIC HEADER CONTENT ---
     # Here is where we inject the school's unique color dynamically!
     st.markdown(
         f"""
-        <div style="background-color: {school_data['color']}; padding: 20px; border-radius: 15px; margin-bottom: 25px; text-align: center; color: white;">
-            <h1 style="margin: 0;">{school_data['name']} Esports</h1>
-            <p style="margin: 5px 0 0 0; font-size: 18px; opacity: 0.9;">Home of the {school_data['mascot']}</p>
+        <div style="background-color: {school_color}; padding: 20px; border-radius: 15px; margin-bottom: 25px; text-align: center; color: white;">
+            <h1 style="margin: 0;">{school_name} Esports</h1>
+            <p style="margin: 5px 0 0 0; font-size: 18px; opacity: 0.9;">Home of the {school_mascot}</p>
         </div>
         """,
         unsafe_allow_html=True
@@ -270,7 +263,7 @@ else:
 
                         "Student Gamer Tag",
 
-                        placeholder="Enter anonymized tag...",
+                        default="Enter anonymized tag...",
 
                         required=True
 
