@@ -58,7 +58,6 @@ schools_df = load_schools_directory()
 games_df = load_games_directory()
 scores_df = load_scoring_directory()
 scores_df["match_id_string"] = scores_df["match_id"].apply(lambda x: x["match_id"] if isinstance(x, dict) else x)
-
 # --- 3. INITIALIZE MEMORY (Session State) ---
 if "logged_in" not in st.session_state:
     st.session_state.logged_in = False
@@ -165,18 +164,19 @@ else:
             }
             st.dataframe(data, column_config=config, width="stretch", hide_index=True)
             if entry:
-                with st.form("scores", clear_on_submit=False):
-                    matching_rows = scores_df[scores_df["match_id_string"] == match_id]
-                    matching_row = matching_rows.iloc[0]
-                    id_data = matching_row["match_id"]  # This is the inner dictionary
-                    game_title = id_data["game"]
-                    home_team = id_data["home"]
-                    away_team = id_data["away"]
-                    form_format = matching_row["form_setup"]
-                    form_results = {}
+                with st.expander("Click To Enter/Validate Scores"):
+                    with st.form("scores", clear_on_submit=False):
+                        matching_rows = scores_df[scores_df["match_id_string"] == match_id]
+                        matching_row = matching_rows.iloc[0]
+                        id_data = matching_row["match_id"]  # This is the inner dictionary
+                        game_title = id_data["game"]
+                        home_team = id_data["home"]
+                        away_team = id_data["away"]
+                        form_format = matching_row["form_setup"]
+                        form_results = {}
 
                     # 2. Extract the field list from your JSON format variable
-                    fields_list = form_format.get("fields", [])
+                        fields_list = form_format.get("fields", [])
 
                     # 3. Loop through the fields and paint the UI dynamically
 
@@ -186,41 +186,45 @@ else:
 
                     # 4. Add the required form submission action button
 
-                    for i in range(0, len(fields_list), 2):
+                        for i in range(0, len(fields_list), 2):
                         # Grab the home and away input specs for a single game round
-                        home_field = fields_list[i]
-                        away_field = fields_list[i + 1]
+                            home_field = fields_list[i]
+                            away_field = fields_list[i + 1]
 
                         # Create two tight horizontal columns that won't collapse on mobile
-                        col1, col2 = st.columns(2)
+                            col1, col2 = st.columns(2)
 
-                        with col1:
-                            form_results[home_field["key"]] = st.number_input(
-                                label=home_field["label"],
-                                min_value=0,
-                                key=f"row_{match_id}_{home_field['key']}"
+                            with col1:
+                                form_results[home_field["key"]] = st.number_input(
+                                    label=home_field["label"],
+                                    min_value=0,
+                                    key=f"row_{match_id}_{home_field['key']}"
                             )
-                        with col2:
-                            form_results[away_field["key"]] = st.number_input(
-                                label=away_field["label"],
-                                min_value=0,
-                                key=f"row_{match_id}_{away_field['key']}"
-                            )
-                    submit_button = st.form_submit_button("Verify & Submit Scores")
-                    if submit_button:
-                        submission_payload = {
-                            "match_id": match_id,
-                            "submitting_school": school_name,  # Or your dynamically logged-in school ID variable
-                            "score_form_reported": form_results  # 💡 This injects the entire dictionary as a single JSON object!
+                            with col2:
+                                form_results[away_field["key"]] = st.number_input(
+                                    label=away_field["label"],
+                                    min_value=0,
+                                    key=f"row_{match_id}_{away_field['key']}"
+                                )
+                        submit_button = st.form_submit_button("Verify & Submit Scores")
+                        if submit_button:
+                            score_reported = {
+
+                             # Or your dynamically logged-in school ID variable
+                            "score_reported": form_results  # 💡 This injects the entire dictionary as a single JSON object!
                         }
 
                         # 2. Ship the single row off to your Supabase match_submissions table
-                        try:
-                            response = supabase.table("scores").insert(submission_payload).execute()
-                            st.success("Scores bundled and logged successfully!")
-
-                        except Exception as e:
-                            st.error(f"Database insertion failed: {e}")
+                            try:
+                                response = (supabase.table("json_forms_scores")
+                                            .update({"score_reported": score_reported, "submitting_school": school_name})
+                                            .eq("match_id", match_id)
+                                            .execute()
+                                            )
+                                st.success("Scores bundled and logged successfully!")
+                                st.balloons()
+                            except Exception as e:
+                                st.error(f"Database insertion failed: {e}")
 
                             # Celebrate success!
 
