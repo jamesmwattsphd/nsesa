@@ -3,8 +3,7 @@ import time
 import os
 import pandas as pd
 from pathlib import Path
-
-from pygments.lexer import default
+import datetime
 from supabase import Client, create_client
 # Accessing the secrets
 url = st.secrets["SUPABASE_URL"]
@@ -20,6 +19,19 @@ st.set_page_config(page_title="NSeSA League Manager", layout="wide", initial_sid
 def load_schools_directory():
     try:
         response = supabase.table("teams").select("*").execute()
+        if response.data:
+            return pd.DataFrame(response.data)
+    except Exception as e:
+        st.error(f"Error loading school profiles: {e}")
+    return pd.DataFrame()
+def load_scoring_directory():
+    try:
+        response = supabase.table("json_forms_scores").select("""
+    match_id (match_id, week, game, home, away),
+    form_setup,
+    score_reported,
+    verified
+""").execute()
         if response.data:
             return pd.DataFrame(response.data)
     except Exception as e:
@@ -44,6 +56,8 @@ def load_games_directory():
 # --- 2. Load DB!
 schools_df = load_schools_directory()
 games_df = load_games_directory()
+scores_df = load_scoring_directory()
+scores_df["match_id_string"] = scores_df["match_id"].apply(lambda x: x["match_id"] if isinstance(x, dict) else x)
 
 # --- 3. INITIALIZE MEMORY (Session State) ---
 if "logged_in" not in st.session_state:
@@ -121,6 +135,7 @@ else:
     school_pic = school_data["logo_file"]
     def match_card_creator(match_info_row, entry=False):
         #read match info_row
+        match_id = match_info_row["match_id"]
         title = match_info_row["game"]
         week = match_info_row["week"]
         hdata = match_info_row["home"]
@@ -133,28 +148,89 @@ else:
         ascore = match_info_row["away_score"]
         # top of card
         with st.container(border=True):
-            st.header(title, text_alignment='center')
-            st.caption(f"Week: {week}", text_alignment='center')
-            home,away = st.columns(2)
-            with home:
-                st.write("Home")
-                st.write(hname)
+            st.header(f"Week: {week}", text_alignment='center')
 
-                st.header(hscore, text_alignment="center")
-                st.image(str(THIS_DIR / hlogo), width=100)
-            with away:
-                st.write("Away")
-                st.write (aname)
+            data = []
+            data.append( {
+                "Home": hlogo,
+                "Game": title,
+                "Away": alogo
+            })
+            data = pd.DataFrame(data)
+            config = {
 
-                st.header(ascore, text_alignment="center")
-                st.image(str(THIS_DIR / alogo), width=100)
+                "Home": st.column_config.ImageColumn(width=100),
+                "Away": st.column_config.ImageColumn(width=100),
+                "Game": st.column_config.TextColumn(alignment="center")
+            }
+            st.dataframe(data, column_config=config, width="stretch", hide_index=True)
+            if entry:
+                with st.form("scores", clear_on_submit=False):
+                    matching_rows = scores_df[scores_df["match_id_string"] == match_id]
+                    matching_row = matching_rows.iloc[0]
+                    id_data = matching_row["match_id"]  # This is the inner dictionary
+                    game_title = id_data["game"]
+                    home_team = id_data["home"]
+                    away_team = id_data["away"]
+                    form_format = matching_row["form_setup"]
+                    form_results = {}
+
+                    # 2. Extract the field list from your JSON format variable
+                    fields_list = form_format.get("fields", [])
+
+                    # 3. Loop through the fields and paint the UI dynamically
+
+
+                        # Scenario A: The schema requests a number input field
+
+
+                    # 4. Add the required form submission action button
+
+                    for i in range(0, len(fields_list), 2):
+                        # Grab the home and away input specs for a single game round
+                        home_field = fields_list[i]
+                        away_field = fields_list[i + 1]
+
+                        # Create two tight horizontal columns that won't collapse on mobile
+                        col1, col2 = st.columns(2)
+
+                        with col1:
+                            form_results[home_field["key"]] = st.number_input(
+                                label=home_field["label"],
+                                min_value=0,
+                                key=f"row_{match_id}_{home_field['key']}"
+                            )
+                        with col2:
+                            form_results[away_field["key"]] = st.number_input(
+                                label=away_field["label"],
+                                min_value=0,
+                                key=f"row_{match_id}_{away_field['key']}"
+                            )
+                    submit_button = st.form_submit_button("Verify & Submit Scores")
+                    if submit_button:
+                        submission_payload = {
+                            "match_id": match_id,
+                            "submitting_school": school_name,  # Or your dynamically logged-in school ID variable
+                            "score_form_reported": form_results  # 💡 This injects the entire dictionary as a single JSON object!
+                        }
+
+                        # 2. Ship the single row off to your Supabase match_submissions table
+                        try:
+                            response = supabase.table("scores").insert(submission_payload).execute()
+                            st.success("Scores bundled and logged successfully!")
+
+                        except Exception as e:
+                            st.error(f"Database insertion failed: {e}")
+
+                            # Celebrate success!
+
+
+
+
 
     # --- SIDEBAR NAVIGATION ---
     with st.sidebar:
-        if (THIS_DIR / school_pic).exists():
-            st.image(str(THIS_DIR / school_pic), width = 120)
-        else:
-            st.title("🎮")
+        st.image(school_pic, width = 120)
         st.markdown(f"**{school_name}**")
         st.markdown(f"**Mascot:** {school_mascot}")
         st.write("---")
@@ -184,20 +260,14 @@ else:
     if page_selection == "Score Entry":
         st.header("⚡ Active Matches")
         st.caption("*Score Entry Enabled*")
-        #3-Columns, 1 for each game that is available.
-        col1, col2, col3 = st.columns(3)
-        with col1:
-            match_row = games_df[games_df["match_id"]=="d1rl1"]
-            game_dict = match_row.iloc[0].to_dict()
-            match_card_creator(game_dict)
-            with st.form(key="RL1"):
-                hr1 = st.number_input("Game 1 Score")
-                hr2 = st.number_input("Game 2 Score")
-                hr3 = st.number_input("Game 3 Score")
-                ar1 = st.number_input("")
-                ar2 = st.number_input(" ")
-                ar3 = st.number_input("  ")
-                submit_button = st.form_submit_button(label="Submit Scores", type="primary", width='stretch')
+        match_row = games_df[games_df["match_id"]=="d1rl1"]
+        game_dict = match_row.iloc[0].to_dict()
+        match_card_creator(game_dict, entry = True)
+
+        
+
+
+
     if page_selection == "Dashboard":
         st.header("Dashboard", text_alignment="center")
 
